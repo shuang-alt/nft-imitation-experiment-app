@@ -29,7 +29,7 @@ import type {
   ResolvedStudyPage,
   StudyId,
 } from "@/lib/types";
-import { abbreviateRespondentId } from "@/lib/utils";
+import { abbreviateRespondentId, cn } from "@/lib/utils";
 
 import { CollectionCard } from "./collection-card";
 import { LikertQuestionGroup } from "./likert-question-group";
@@ -387,7 +387,12 @@ function StudyPageContent({
                     {field.options?.map((option) => (
                       <label
                         key={`${field.key}-${option}`}
-                        className="cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50"
+                        className={cn(
+                          "cursor-pointer rounded-2xl border px-4 py-3 text-sm font-medium transition",
+                          answers[field.key] === option
+                            ? "border-sky-500 bg-sky-500 text-white shadow-[0_14px_28px_rgba(14,165,233,0.28)]"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-sky-50",
+                        )}
                       >
                         <input
                           className="sr-only"
