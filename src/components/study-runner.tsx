@@ -42,6 +42,13 @@ type StudyRunnerProps = {
   bootstrap?: StudySessionBootstrap;
 };
 
+function usesSingleColumnLayout(studyId: StudyId, pageNumber: number) {
+  return (
+    (studyId === "study1" && pageNumber >= 1 && pageNumber <= 3) ||
+    (studyId === "study2" && pageNumber >= 1 && pageNumber <= 2)
+  );
+}
+
 function isPageComplete(page: ResolvedStudyPage, answers: AnswerRecord) {
   if (page.kind === "likert" || page.kind === "demographics") {
     const likertComplete = page.answerKeys.every(
@@ -175,6 +182,11 @@ function StudyPageContent({
     () => session.pageDrafts[`page-${pageNumber}`] ?? {},
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const useSingleColumnLayout = usesSingleColumnLayout(studyId, pageNumber);
+  const paragraphClassName = cn(
+    "text-base leading-8 text-slate-700 md:text-lg",
+    useSingleColumnLayout && "md:text-[1.1rem] md:leading-9",
+  );
 
   useEffect(() => {
     saveStudyDraft(studyId, pageNumber, answers);
@@ -261,7 +273,7 @@ function StudyPageContent({
       return (
         <div className="space-y-5">
           {page.paragraphs.map((paragraph) => (
-            <p key={paragraph} className="text-base leading-8 text-slate-700 md:text-lg">
+            <p key={paragraph} className={paragraphClassName}>
               {paragraph}
             </p>
           ))}
@@ -273,10 +285,10 @@ function StudyPageContent({
       const collection = getCollectionRecord(page.collectionKey);
 
       return (
-        <div className="space-y-6">
+        <div className={cn("space-y-6", useSingleColumnLayout && "space-y-7")}>
           <div className="space-y-3">
             {page.introLines.map((line) => (
-              <p key={line} className="text-base leading-8 text-slate-700 md:text-lg">
+              <p key={line} className={paragraphClassName}>
                 {line}
               </p>
             ))}
@@ -284,7 +296,13 @@ function StudyPageContent({
           <CollectionCard collection={collection} nameOverride={page.collectionNameOverride} />
           <div className="space-y-2">
             {page.footerLines.map((line) => (
-              <p key={line} className="text-sm leading-7 text-slate-600">
+              <p
+                key={line}
+                className={cn(
+                  "text-sm leading-7 text-slate-600",
+                  useSingleColumnLayout && "text-base leading-8",
+                )}
+              >
                 {line}
               </p>
             ))}
@@ -295,15 +313,20 @@ function StudyPageContent({
 
     if (page.kind === "dual-collection") {
       return (
-        <div className="space-y-6">
+        <div className={cn("space-y-6", useSingleColumnLayout && "space-y-7")}>
           <div className="space-y-3">
             {page.introLines.map((line) => (
-              <p key={line} className="text-base leading-8 text-slate-700 md:text-lg">
+              <p key={line} className={paragraphClassName}>
                 {line}
               </p>
             ))}
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div
+            className={cn(
+              "grid gap-5 xl:grid-cols-2",
+              useSingleColumnLayout && "gap-6 lg:grid-cols-2",
+            )}
+          >
             {page.collectionKeys.map((collectionKey, index) => (
               <CollectionCard
                 key={`${collectionKey}-${index}`}
@@ -314,7 +337,13 @@ function StudyPageContent({
           </div>
           <div className="space-y-2">
             {page.footerLines.map((line) => (
-              <p key={line} className="text-sm leading-7 text-slate-600">
+              <p
+                key={line}
+                className={cn(
+                  "text-sm leading-7 text-slate-600",
+                  useSingleColumnLayout && "text-base leading-8",
+                )}
+              >
                 {line}
               </p>
             ))}
@@ -328,7 +357,7 @@ function StudyPageContent({
         <div className="space-y-6">
           <div className="space-y-3">
             {page.introLines.map((line) => (
-              <p key={line} className="text-base leading-8 text-slate-700 md:text-lg">
+              <p key={line} className={paragraphClassName}>
                 {line}
               </p>
             ))}
@@ -348,7 +377,7 @@ function StudyPageContent({
       <div className="space-y-8">
         <div className="space-y-3">
           {page.introLines.map((line) => (
-            <p key={line} className="text-base leading-8 text-slate-700 md:text-lg">
+            <p key={line} className={paragraphClassName}>
               {line}
             </p>
           ))}
@@ -429,7 +458,7 @@ function StudyPageContent({
   }
 
   return (
-      <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+    <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col gap-4 rounded-[36px] border border-white/80 bg-white/80 px-6 py-5 shadow-[0_28px_90px_rgba(15,23,42,0.1)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
@@ -480,8 +509,13 @@ function StudyPageContent({
           </div>
         </header>
 
-        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <section className="rounded-[36px] border border-white/80 bg-white/82 p-6 shadow-[0_28px_90px_rgba(15,23,42,0.1)] backdrop-blur-xl md:p-8">
+        <div className={cn("grid gap-6", !useSingleColumnLayout && "xl:grid-cols-[1.25fr_0.75fr]")}>
+          <section
+            className={cn(
+              "rounded-[36px] border border-white/80 bg-white/82 p-6 shadow-[0_28px_90px_rgba(15,23,42,0.1)] backdrop-blur-xl md:p-8",
+              useSingleColumnLayout && "mx-auto w-full max-w-5xl px-6 py-7 md:px-10 md:py-9",
+            )}
+          >
             <div className="mb-8">
               <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                 <div
@@ -499,8 +533,20 @@ function StudyPageContent({
               </div>
             ) : null}
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-slate-500">
+            <div
+              className={cn(
+                "mt-8 flex flex-col gap-3",
+                useSingleColumnLayout
+                  ? "sm:flex-row sm:items-end sm:justify-between"
+                  : "sm:flex-row sm:items-center sm:justify-between",
+              )}
+            >
+              <p
+                className={cn(
+                  "text-sm leading-6 text-slate-500",
+                  useSingleColumnLayout && "max-w-2xl text-base leading-7",
+                )}
+              >
                 每次点击“下一页”都会触发逐页保存接口，并记录 page metadata。
               </p>
               <button
@@ -515,28 +561,30 @@ function StudyPageContent({
             </div>
           </section>
 
-          <aside className="space-y-5">
-            <section className="rounded-[32px] border border-white/80 bg-white/82 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                <Sparkles className="h-4 w-4 text-cyan-600" />
-                Session Context
-              </div>
-              <h2 className="mt-3 font-display text-2xl text-slate-950">
-                NFT marketplace browsing study
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                页面风格模拟 marketplace 浏览体验，受试者在本地会话内会保持同一实验条件，不会因刷新页面而变化。
-              </p>
-            </section>
+          {!useSingleColumnLayout ? (
+            <aside className="space-y-5">
+              <section className="rounded-[32px] border border-white/80 bg-white/82 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <Sparkles className="h-4 w-4 text-cyan-600" />
+                  Session Context
+                </div>
+                <h2 className="mt-3 font-display text-2xl text-slate-950">
+                  NFT marketplace browsing study
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  页面风格模拟 marketplace 浏览体验，受试者在本地会话内会保持同一实验条件，不会因刷新页面而变化。
+                </p>
+              </section>
 
-            {page.sidebarCollectionKeys?.map((collectionKey, index) => (
-              <CollectionCard
-                key={`${collectionKey}-${index}`}
-                collection={getCollectionRecord(collectionKey)}
-                density="compact"
-              />
-            ))}
-          </aside>
+              {page.sidebarCollectionKeys?.map((collectionKey, index) => (
+                <CollectionCard
+                  key={`${collectionKey}-${index}`}
+                  collection={getCollectionRecord(collectionKey)}
+                  density="compact"
+                />
+              ))}
+            </aside>
+          ) : null}
         </div>
       </div>
     </main>
