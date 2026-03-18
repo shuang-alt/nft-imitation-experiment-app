@@ -9,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 
-import { readBrowserDashboardDataset } from "@/lib/client-storage";
+import { readBrowserDashboardDataset, subscribeToStorage } from "@/lib/client-storage";
 import { buildDashboardSummary, mergeDashboardDatasets } from "@/lib/dashboard";
 import type { DashboardDataset } from "@/lib/types";
 import { abbreviateRespondentId, formatTimestamp } from "@/lib/utils";
@@ -46,11 +46,19 @@ const statCards = [
 ];
 
 export function AdminDashboard({ initialDataset }: AdminDashboardProps) {
-  const dataset = useSyncExternalStore(
-    () => () => undefined,
-    () => mergeDashboardDatasets(initialDataset, readBrowserDashboardDataset()),
-    () => initialDataset,
+  const browserDataset = useSyncExternalStore(
+    subscribeToStorage,
+    readBrowserDashboardDataset,
+    () => ({
+      respondents: [],
+      pageEvents: [],
+      finishes: [],
+      storageMode: "mock" as const,
+      notices: [],
+      updatedAt: "",
+    }),
   );
+  const dataset = mergeDashboardDatasets(initialDataset, browserDataset);
 
   const summary = buildDashboardSummary(dataset);
 

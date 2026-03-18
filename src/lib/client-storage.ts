@@ -14,6 +14,17 @@ const RESPONDENT_CACHE_KEY = "nft-imitation-admin-respondents";
 const PAGE_EVENT_CACHE_KEY = "nft-imitation-admin-page-events";
 const FINISH_CACHE_KEY = "nft-imitation-admin-finishes";
 const storageListeners = new Set<() => void>();
+const parsedStorageCache = new Map<string, { raw: string | null; value: unknown }>();
+const sessionSnapshotCache = new Map<
+  string,
+  { raw: string | null; value: RespondentSession | null }
+>();
+let dashboardDatasetCache:
+  | {
+      signature: string;
+      value: DashboardDataset;
+    }
+  | undefined;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -26,7 +37,24 @@ function readJson<T>(key: string, fallback: T): T {
 
   try {
     const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    const cached = parsedStorageCache.get(key) as
+      | {
+          raw: string | null;
+          value: T;
+        }
+      | undefined;
+
+    if (cached && cached.raw === raw) {
+      return cached.value;
+    }
+
+    const value = raw ? (JSON.parse(raw) as T) : fallback;
+    parsedStorageCache.set(key, {
+      raw,
+      value,
+    });
+
+    return value;
   } catch {
     return fallback;
   }
@@ -37,7 +65,13 @@ function writeJson(key: string, value: unknown) {
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
+  const raw = JSON.stringify(value);
+  window.localStorage.setItem(key, raw);
+  parsedStorageCache.set(key, {
+    raw,
+    value,
+  });
+  dashboardDatasetCache = undefined;
   storageListeners.forEach((listener) => listener());
 }
 
@@ -104,14 +138,40 @@ export function ensureStudySession(studyId: StudyId) {
 }
 
 export function getStudySessionSnapshot(studyId: StudyId) {
-  return readStudySession(studyId);
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const key = sessionStorageKey(studyId);
+  const raw = window.localStorage.getItem(key);
+  const cached = sessionSnapshotCache.get(key);
+
+  if (cached && cached.raw === raw) {
+    return cached.value;
+  }
+
+  const value = ensureDrafts(raw ? (JSON.parse(raw) as Partial<RespondentSession>) : null, studyId);
+  sessionSnapshotCache.set(key, {
+    raw,
+    value,
+  });
+
+  return value;
 }
 
 export function subscribeToStorage(listener: () => void) {
   storageListeners.add(listener);
 
+  if (isBrowser()) {
+    window.addEventListener("storage", listener);
+  }
+
   return () => {
     storageListeners.delete(listener);
+
+    if (isBrowser()) {
+      window.removeEventListener("storage", listener);
+    }
   };
 }
 
@@ -235,7 +295,16 @@ export function readBrowserDashboardDataset(): DashboardDataset {
     };
   }
 
-  return mergeDashboardDatasets({
+  const respondentsRaw = window.localStorage.getItem(RESPONDENT_CACHE_KEY);
+  const pageEventsRaw = window.localStorage.getItem(PAGE_EVENT_CACHE_KEY);
+  const finishesRaw = window.localStorage.getItem(FINISH_CACHE_KEY);
+  const signature = `${respondentsRaw ?? "null"}::${pageEventsRaw ?? "null"}::${finishesRaw ?? "null"}`;
+
+  if (dashboardDatasetCache?.signature === signature) {
+    return dashboardDatasetCache.value;
+  }
+
+  const value = mergeDashboardDatasets({
     respondents: readJson(RESPONDENT_CACHE_KEY, []),
     pageEvents: readJson(PAGE_EVENT_CACHE_KEY, []),
     finishes: readJson(FINISH_CACHE_KEY, []),
@@ -245,4 +314,11 @@ export function readBrowserDashboardDataset(): DashboardDataset {
     ],
     updatedAt: new Date().toISOString(),
   });
+
+  dashboardDatasetCache = {
+    signature,
+    value,
+  };
+
+  return value;
 }
