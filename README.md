@@ -1,15 +1,20 @@
 # NFT Imitation Experiment Platform
 
-用于 `NFT imitation` 行为实验的双 study Web 项目。项目实现了：
+用于 `NFT imitation` 行为实验的 Web 项目，包含 4 个固定条件入口：
 
-- `Study 1: Sequential Exposure Experiment`
-- `Study 2: Joint Display Experiment`
-- 本地随机分组 `control / treatment`
-- respondent 会话保持
+- `Study 1 / Control`
+- `Study 1 / Treatment`
+- `Study 2 / Control`
+- `Study 2 / Treatment`
+
+项目保留：
+
+- 两个 study 的完整 7 页流程
 - 逐页保存 API
 - 完成提交 API
-- mock/local fallback
-- 极简 admin dashboard 原型
+- respondent 会话保持
+- mock / database 双模式数据层
+- 极简 admin dashboard
 - 统一的 collection data layer
 
 ## Tech Stack
@@ -23,31 +28,28 @@
 
 ## Routes
 
-- `/`：Landing
-- `/study-1`：Study 1 独立入口
-- `/study-2`：Study 2 独立入口
-- `/study/study1/page/1` 到 `/study/study1/page/7`
-- `/study/study2/page/1` 到 `/study/study2/page/7`
-- `/thank-you/study1`
-- `/thank-you/study2`
+### Fixed Entry Routes
+
+- `/study1-control`
+- `/study1-treatment`
+- `/study2-control`
+- `/study2-treatment`
+
+### Survey Routes
+
+- `/study/study1/control/page/1` 到 `/study/study1/control/page/7`
+- `/study/study1/treatment/page/1` 到 `/study/study1/treatment/page/7`
+- `/study/study2/control/page/1` 到 `/study/study2/control/page/7`
+- `/study/study2/treatment/page/1` 到 `/study/study2/treatment/page/7`
+
+### Other Routes
+
+- `/`
 - `/admin`
-
-### Test session links
-
-为了便于验收，可以给 `study` 路由附加以下 query 参数，直接初始化一个固定 respondent 会话：
-
-- `respondent_id`
-- `condition`
-- `started_at`（可选）
-- `reset=1`
-
-示例：
-
-```text
-/study-1?respondent_id=demo_study1_control&condition=control&reset=1
-```
-
-`reset=1` 会覆盖当前浏览器内该 study 既有的本地会话，方便重复测试固定 condition。
+- `/thank-you/study1/control`
+- `/thank-you/study1/treatment`
+- `/thank-you/study2/control`
+- `/thank-you/study2/treatment`
 
 ## Local Run
 
@@ -72,11 +74,7 @@ npm run build
 
 ### Vercel
 
-推荐直接导入此项目到 Vercel，或在本地执行：
-
-```bash
-npx vercel
-```
+推荐将当前 GitHub 仓库连接到 Vercel 并使用自动部署。
 
 如果需要绑定正式域名，部署平台侧配置完成后，把 `CUSTOM_DOMAIN` 填回环境变量。
 
@@ -86,18 +84,36 @@ npx vercel
 
 ## Study Logic
 
-### Random assignment
+### Fixed route-driven condition
 
-- `Study 1` 内部随机分配 `control / treatment`
-- `Study 2` 内部随机分配 `control / treatment`
-- 分组信息写入浏览器 `localStorage`
-- 同一受试者在本地会话中刷新页面后不会改变 condition
+- `condition` 由路由固定，不再随机分组
+- `study1-control` 永远进入 `Study 1 / Control`
+- `study1-treatment` 永远进入 `Study 1 / Treatment`
+- `study2-control` 永远进入 `Study 2 / Control`
+- `study2-treatment` 永远进入 `Study 2 / Treatment`
 
 ### Respondent identity
 
-- 首次进入某个 study 时自动生成 `respondent_id`
-- 格式示例：`resp_study1_<uuid>`
-- respondent 会话保存于浏览器本地
+- 首次进入某一条固定路径时自动生成 `respondent_id`
+- 格式示例：`resp_study1_control_<uuid>`
+- 会话保存在浏览器 `localStorage`
+- `Study 1 / Control` 与 `Study 1 / Treatment` 会分别保存自己的本地 respondent/session
+
+### Fixed-path test links
+
+如需固定一个可复验的 respondent，会保留以下 query 参数：
+
+- `respondent_id`
+- `started_at`（可选）
+- `reset=1`
+
+示例：
+
+```text
+/study/study1/control/page/1?respondent_id=demo_study1_control&reset=1
+```
+
+`reset=1` 会覆盖当前浏览器里该固定路径已有的本地会话。
 
 ### Progressive saving
 
@@ -105,7 +121,7 @@ npx vercel
 
 ```json
 {
-  "respondent_id": "resp_study1_xxx",
+  "respondent_id": "resp_study1_control_xxx",
   "study_id": "study1",
   "condition": "control",
   "page_number": 4,
@@ -123,7 +139,7 @@ npx vercel
 
 ```json
 {
-  "respondent_id": "resp_study1_xxx",
+  "respondent_id": "resp_study1_control_xxx",
   "study_id": "study1",
   "condition": "control",
   "finished_at": "2026-03-18T12:05:00.000Z",
@@ -142,7 +158,7 @@ npx vercel
 - server log 会打印本应写入数据库的数据
 - browser console 会打印 mock save 信息
 - 浏览器 `localStorage` 会缓存本机提交
-- `/admin` 会合并 server mock 和当前浏览器缓存显示概览
+- `/admin` 会显示 mock/local 概览
 
 #### Production mode
 
@@ -159,7 +175,7 @@ npx vercel
 - `POST /rest/v1/<table>` 写入 page events 和 response snapshots
 - `PATCH /rest/v1/<table>?respondent_id=eq...&study_id=eq...` 更新完成状态
 
-如果你使用其他数据库或 API gateway，只需要在 [src/lib/storage.ts](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/storage.ts) 中替换 `databaseRequest` 及相关 `persist*` 方法。
+如果你使用其他数据库或 API gateway，只需要在 [src/lib/storage.ts](/Users/uk5y/Documents/New%20project%202/nft-imitation-experiment-app/src/lib/storage.ts) 中替换 `databaseRequest` 及相关 `persist*` 方法。
 
 ## Environment Variables To Fill Later
 
@@ -206,17 +222,15 @@ npx vercel
 - control / treatment counts
 - latest submissions
 
-如果未接数据库，则显示 mock/local data 概览。
-
 ## Data Layer
 
 统一 collection data layer 位于：
 
-- [src/lib/collection-data.json](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/collection-data.json)
+- [src/lib/collection-data.json](/Users/uk5y/Documents/New%20project%202/nft-imitation-experiment-app/src/lib/collection-data.json)
 
 问卷流程与页面定义位于：
 
-- [src/lib/experiments.ts](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/experiments.ts)
+- [src/lib/experiments.ts](/Users/uk5y/Documents/New%20project%202/nft-imitation-experiment-app/src/lib/experiments.ts)
 
 ## Public References vs Mock Assets
 
@@ -250,16 +264,21 @@ src/
         start/
     study/
       [studyId]/
-        page/
-          [pageNumber]/
-    study-1/
-    study-2/
+        [condition]/
+          page/
+            [pageNumber]/
+    study1-control/
+    study1-treatment/
+    study2-control/
+    study2-treatment/
     thank-you/
       [studyId]/
+        [condition]/
   components/
     admin-dashboard.tsx
     collection-art.tsx
     collection-card.tsx
+    experiment-entry.tsx
     likert-question-group.tsx
     study-runner.tsx
   lib/
@@ -272,17 +291,3 @@ src/
     storage.ts
     types.ts
 ```
-
-## Key Files
-
-- Landing page: [src/app/page.tsx](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/app/page.tsx)
-- Study runner: [src/components/study-runner.tsx](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/components/study-runner.tsx)
-- Database/mock abstraction: [src/lib/storage.ts](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/storage.ts)
-- Local session/cache: [src/lib/client-storage.ts](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/client-storage.ts)
-- Admin summary logic: [src/lib/dashboard.ts](/Users/uk5y/Documents/New project 2/nft-imitation-experiment-app/src/lib/dashboard.ts)
-
-## Notes
-
-- 问卷中文题干和题项已按原文保留。
-- 当前实现没有接入真实数据库 schema migration；你只需按上述字段准备表结构，并在 `storage.ts` 对应 REST 字段名保持一致即可。
-- 如果未来要把 admin dashboard 改为正式后台，建议把 `ADMIN_DASHBOARD_PASSWORD` 换成真正的鉴权机制。

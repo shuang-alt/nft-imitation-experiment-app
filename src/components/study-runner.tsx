@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
-import { ArrowRight, Clock3, Layers3, Shield, Sparkles } from "lucide-react";
+import { ArrowRight, Clock3, Layers3, Shield } from "lucide-react";
 
 import {
   bootstrapStudySession,
@@ -19,12 +19,16 @@ import {
   updateStudyCurrentPage,
 } from "@/lib/client-storage";
 import {
+  buildStudyEntryPath,
+  buildStudyPagePath,
+  buildThankYouPath,
   getCollectionRecord,
   getStudyMetadata,
   getStudyPages,
 } from "@/lib/experiments";
 import type {
   AnswerRecord,
+  Condition,
   DemographicsPage,
   PersistResult,
   ResolvedStudyPage,
@@ -38,6 +42,7 @@ import { LikertQuestionGroup } from "./likert-question-group";
 
 type StudyRunnerProps = {
   studyId: StudyId;
+  condition: Condition;
   pageNumber: number;
   bootstrap?: StudySessionBootstrap;
 };
@@ -100,23 +105,28 @@ async function postPayload<T>(path: string, payload: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function StudyRunner({ studyId, pageNumber, bootstrap }: StudyRunnerProps) {
+export function StudyRunner({
+  studyId,
+  condition,
+  pageNumber,
+  bootstrap,
+}: StudyRunnerProps) {
   const session = useSyncExternalStore(
     subscribeToStorage,
-    () => getStudySessionSnapshot(studyId),
+    () => getStudySessionSnapshot(studyId, condition),
     () => null,
   );
-  const pages = session ? getStudyPages(studyId, session.condition) : [];
+  const pages = session ? getStudyPages(studyId, condition) : [];
   const page = session ? pages[pageNumber - 1] : null;
 
   useEffect(() => {
     const { session: ensuredSession, isNew } = bootstrap
-      ? bootstrapStudySession(studyId, {
+      ? bootstrapStudySession(studyId, condition, {
           ...bootstrap,
           currentPage: pageNumber,
         })
-      : ensureStudySession(studyId);
-    updateStudyCurrentPage(studyId, pageNumber);
+      : ensureStudySession(studyId, condition);
+    updateStudyCurrentPage(studyId, condition, pageNumber);
 
     if (isNew) {
       const payload = {
@@ -138,7 +148,7 @@ export function StudyRunner({ studyId, pageNumber, bootstrap }: StudyRunnerProps
           console.error("Failed to initialize respondent", error);
         });
     }
-  }, [bootstrap, pageNumber, studyId]);
+  }, [bootstrap, condition, pageNumber, studyId]);
 
   if (!session || !page) {
     return (
@@ -155,6 +165,7 @@ export function StudyRunner({ studyId, pageNumber, bootstrap }: StudyRunnerProps
       key={`${studyId}-${pageNumber}-${session.respondentId}`}
       session={session}
       studyId={studyId}
+      condition={condition}
       page={page}
       pageNumber={pageNumber}
     />
@@ -163,6 +174,7 @@ export function StudyRunner({ studyId, pageNumber, bootstrap }: StudyRunnerProps
 
 type StudyPageContentProps = {
   studyId: StudyId;
+  condition: Condition;
   pageNumber: number;
   page: ResolvedStudyPage;
   session: NonNullable<ReturnType<typeof getStudySessionSnapshot>>;
@@ -170,6 +182,7 @@ type StudyPageContentProps = {
 
 function StudyPageContent({
   studyId,
+  condition,
   pageNumber,
   page,
   session,
@@ -189,8 +202,8 @@ function StudyPageContent({
   );
 
   useEffect(() => {
-    saveStudyDraft(studyId, pageNumber, answers);
-  }, [answers, pageNumber, studyId]);
+    saveStudyDraft(studyId, condition, pageNumber, answers);
+  }, [answers, condition, pageNumber, studyId]);
 
   const progressPercent = Math.round((pageNumber / study.totalPages) * 100);
 
@@ -202,7 +215,7 @@ function StudyPageContent({
 
     setErrorMessage("");
     const submittedAt = new Date().toISOString();
-    const currentSession = readStudySession(studyId);
+    const currentSession = readStudySession(studyId, condition);
 
     if (!currentSession) {
       setErrorMessage("本地会话丢失，请返回首页重新开始。");
@@ -246,21 +259,21 @@ function StudyPageContent({
         );
 
         cacheFinish(finishPayload);
-        markStudyCompleted(studyId, submittedAt, page.pageNumber);
+        markStudyCompleted(studyId, condition, submittedAt, page.pageNumber);
 
         if (finishResult.mode === "mock") {
           console.info("[client-mock] respondent-finish", finishPayload);
         }
 
         startTransition(() => {
-          router.push(`/thank-you/${studyId}`);
+          router.push(buildThankYouPath(studyId, condition));
         });
 
         return;
       }
 
       startTransition(() => {
-        router.push(`/study/${studyId}/page/${pageNumber + 1}`);
+        router.push(buildStudyPagePath(studyId, condition, pageNumber + 1));
       });
     } catch (error) {
       console.error(error);
@@ -463,7 +476,7 @@ function StudyPageContent({
         <header className="flex flex-col gap-4 rounded-[36px] border border-white/80 bg-white/80 px-6 py-5 shadow-[0_28px_90px_rgba(15,23,42,0.1)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <Link
-              href="/"
+              href={buildStudyEntryPath(studyId, condition)}
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500"
             >
               VaultCanvas Lab
@@ -533,22 +546,7 @@ function StudyPageContent({
               </div>
             ) : null}
 
-            <div
-              className={cn(
-                "mt-8 flex flex-col gap-3",
-                useSingleColumnLayout
-                  ? "sm:flex-row sm:items-end sm:justify-between"
-                  : "sm:flex-row sm:items-center sm:justify-between",
-              )}
-            >
-              <p
-                className={cn(
-                  "text-sm leading-6 text-slate-500",
-                  useSingleColumnLayout && "max-w-2xl text-base leading-7",
-                )}
-              >
-                每次点击“下一页”都会触发逐页保存接口，并记录 page metadata。
-              </p>
+            <div className={cn("mt-8 flex justify-end", useSingleColumnLayout && "md:mt-10")}>
               <button
                 type="button"
                 onClick={handleNext}
@@ -564,16 +562,46 @@ function StudyPageContent({
           {!useSingleColumnLayout ? (
             <aside className="space-y-5">
               <section className="rounded-[32px] border border-white/80 bg-white/82 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  <Sparkles className="h-4 w-4 text-cyan-600" />
-                  Session Context
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Study Snapshot
                 </div>
                 <h2 className="mt-3 font-display text-2xl text-slate-950">
-                  NFT marketplace browsing study
+                  {study.fullTitle}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  页面风格模拟 marketplace 浏览体验，受试者在本地会话内会保持同一实验条件，不会因刷新页面而变化。
-                </p>
+                <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Respondent
+                    </dt>
+                    <dd className="mt-2 text-sm font-semibold text-slate-900">
+                      {abbreviateRespondentId(session.respondentId)}
+                    </dd>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Page
+                    </dt>
+                    <dd className="mt-2 text-sm font-semibold text-slate-900">
+                      {pageNumber} / {study.totalPages}
+                    </dd>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Progress
+                    </dt>
+                    <dd className="mt-2 text-sm font-semibold text-slate-900">
+                      {progressPercent}%
+                    </dd>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Privacy
+                    </dt>
+                    <dd className="mt-2 text-sm font-semibold text-slate-900">
+                      Anonymous
+                    </dd>
+                  </div>
+                </dl>
               </section>
 
               {page.sidebarCollectionKeys?.map((collectionKey, index) => (

@@ -71,8 +71,22 @@ export const featuredCollectionKeys: CollectionKey[] = [
   "cyberWhales",
 ];
 
+const entryPreviewCollections: Record<
+  `${StudyId}-${Condition}`,
+  CollectionKey[]
+> = {
+  "study1-control": ["cyberWhales", "pixelPaws"],
+  "study1-treatment": ["pixelPawsX", "pixelPaws"],
+  "study2-control": ["pixelPaws", "cyberWhales"],
+  "study2-treatment": ["pixelPaws", "pixelPawsX"],
+};
+
 export function isStudyId(value: string): value is StudyId {
   return value === "study1" || value === "study2";
+}
+
+export function isCondition(value: string): value is Condition {
+  return value === "control" || value === "treatment";
 }
 
 export function getCollectionRecord(collectionKey: CollectionKey) {
@@ -85,6 +99,49 @@ export function getFeaturedCollections() {
 
 export function getStudyMetadata(studyId: StudyId) {
   return studyMetadata[studyId];
+}
+
+export function getConditionLabel(condition: Condition) {
+  return condition === "control" ? "Control" : "Treatment";
+}
+
+export function buildStudyEntryPath(studyId: StudyId, condition: Condition) {
+  return `/${studyId}-${condition}`;
+}
+
+export function buildStudyPagePath(
+  studyId: StudyId,
+  condition: Condition,
+  pageNumber: number,
+) {
+  return `/study/${studyId}/${condition}/page/${pageNumber}`;
+}
+
+export function buildThankYouPath(studyId: StudyId, condition: Condition) {
+  return `/thank-you/${studyId}/${condition}`;
+}
+
+export function getEntryPreviewCollections(studyId: StudyId, condition: Condition) {
+  return entryPreviewCollections[`${studyId}-${condition}`].map((key) => collections[key]);
+}
+
+export function getStudyEntryCards() {
+  return (Object.entries(entryPreviewCollections) as Array<
+    [`${StudyId}-${Condition}`, CollectionKey[]]
+  >).map(([flowKey, previewCollections]) => {
+    const [studyId, condition] = flowKey.split("-") as [StudyId, Condition];
+    const study = getStudyMetadata(studyId);
+
+    return {
+      studyId,
+      condition,
+      study,
+      conditionLabel: getConditionLabel(condition),
+      entryPath: buildStudyEntryPath(studyId, condition),
+      pagePath: buildStudyPagePath(studyId, condition, 1),
+      previewCollections: previewCollections.map((key) => collections[key]),
+    };
+  });
 }
 
 export function getStudyPages(

@@ -118,30 +118,13 @@ export function AdminDashboard({ initialDataset }: AdminDashboardProps) {
               </dd>
             </div>
           </dl>
-          <div className="mt-5 space-y-3">
-            {summary.notices.map((notice) => (
-              <div
-                key={notice}
-                className="rounded-[22px] border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm leading-6 text-sky-800"
-              >
-                {notice}
-              </div>
-            ))}
-            <p className="text-xs text-slate-500">
-              Last refreshed: {formatTimestamp(summary.updatedAt)}
-            </p>
-          </div>
+          <p className="mt-5 text-xs text-slate-500">
+            Last refreshed: {formatTimestamp(summary.updatedAt)}
+          </p>
         </section>
 
         <section className="rounded-[30px] border border-white/80 bg-white/85 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.1)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-2xl text-slate-950">Latest Submissions</h2>
-              <p className="text-sm text-slate-500">
-                最近写入的 page save / finish 事件概览
-              </p>
-            </div>
-          </div>
+          <h2 className="font-display text-2xl text-slate-950">Latest Submissions</h2>
 
           {summary.latestSubmissions.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center text-sm text-slate-500">

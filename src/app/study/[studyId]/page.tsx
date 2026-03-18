@@ -1,6 +1,4 @@
-import { notFound, redirect } from "next/navigation";
-
-import { isStudyId } from "@/lib/experiments";
+import { redirect } from "next/navigation";
 
 type StudyEntryPageProps = {
   params: Promise<{
@@ -9,11 +7,6 @@ type StudyEntryPageProps = {
 };
 
 export default async function StudyEntryPage({ params }: StudyEntryPageProps) {
-  const { studyId } = await params;
-
-  if (!isStudyId(studyId)) {
-    notFound();
-  }
-
-  redirect(`/study/${studyId}/page/1`);
+  await params;
+  redirect("/");
 }

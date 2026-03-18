@@ -64,9 +64,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <h1 className="mt-2 font-display text-4xl text-slate-950">
               Response overview dashboard
             </h1>
-            <p className="mt-2 text-sm leading-7 text-slate-600">
-              显示 total respondents、completed respondents、study/condition 计数与最新提交事件。未配置数据库时会合并 server mock 与当前浏览器缓存。
-            </p>
           </div>
           <Link
             href="/"

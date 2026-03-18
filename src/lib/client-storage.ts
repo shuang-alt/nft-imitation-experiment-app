@@ -1,6 +1,7 @@
 import { mergeDashboardDatasets } from "./dashboard";
 import type {
   AnswerRecord,
+  Condition,
   DashboardDataset,
   PageEventPayload,
   RespondentFinishPayload,
@@ -80,19 +81,24 @@ function sessionStorageKey(studyId: StudyId) {
   return `${SESSION_PREFIX}:${studyId}`;
 }
 
-function randomCondition() {
-  return Math.random() < 0.5 ? "control" : "treatment";
+function scopedSessionStorageKey(studyId: StudyId, condition: Condition) {
+  return `${sessionStorageKey(studyId)}:${condition}`;
 }
 
-function ensureDrafts(value: Partial<RespondentSession> | null, studyId: StudyId) {
+function ensureDrafts(
+  value: Partial<RespondentSession> | null,
+  studyId: StudyId,
+  condition: Condition,
+) {
   if (!value) {
     return null;
   }
 
   return {
-    respondentId: value.respondentId ?? `resp_${studyId}_${crypto.randomUUID()}`,
+    respondentId:
+      value.respondentId ?? `resp_${studyId}_${condition}_${crypto.randomUUID()}`,
     studyId,
-    condition: value.condition ?? randomCondition(),
+    condition,
     startedAt: value.startedAt ?? new Date().toISOString(),
     currentPage: value.currentPage ?? 1,
     completedAt: value.completedAt,
@@ -100,15 +106,19 @@ function ensureDrafts(value: Partial<RespondentSession> | null, studyId: StudyId
   } satisfies RespondentSession;
 }
 
-export function readStudySession(studyId: StudyId) {
+export function readStudySession(studyId: StudyId, condition: Condition) {
   return ensureDrafts(
-    readJson<Partial<RespondentSession> | null>(sessionStorageKey(studyId), null),
+    readJson<Partial<RespondentSession> | null>(
+      scopedSessionStorageKey(studyId, condition),
+      null,
+    ),
     studyId,
+    condition,
   );
 }
 
-export function getOrCreateStudySession(studyId: StudyId) {
-  const existing = readStudySession(studyId);
+export function getOrCreateStudySession(studyId: StudyId, condition: Condition) {
+  const existing = readStudySession(studyId, condition);
 
   if (existing) {
     return {
@@ -118,15 +128,15 @@ export function getOrCreateStudySession(studyId: StudyId) {
   }
 
   const session: RespondentSession = {
-    respondentId: `resp_${studyId}_${crypto.randomUUID()}`,
+    respondentId: `resp_${studyId}_${condition}_${crypto.randomUUID()}`,
     studyId,
-    condition: randomCondition(),
+    condition,
     startedAt: new Date().toISOString(),
     currentPage: 1,
     pageDrafts: {},
   };
 
-  writeJson(sessionStorageKey(studyId), session);
+  writeJson(scopedSessionStorageKey(studyId, condition), session);
 
   return {
     session,
@@ -134,20 +144,20 @@ export function getOrCreateStudySession(studyId: StudyId) {
   };
 }
 
-export function ensureStudySession(studyId: StudyId) {
-  return getOrCreateStudySession(studyId);
+export function ensureStudySession(studyId: StudyId, condition: Condition) {
+  return getOrCreateStudySession(studyId, condition);
 }
 
 export function bootstrapStudySession(
   studyId: StudyId,
+  condition: Condition,
   seed: StudySessionBootstrap,
 ) {
-  const existing = readStudySession(studyId);
+  const existing = readStudySession(studyId, condition);
   const shouldReset =
     seed.reset ||
     !existing ||
-    existing.respondentId !== seed.respondentId ||
-    existing.condition !== seed.condition;
+    existing.respondentId !== seed.respondentId;
 
   if (!shouldReset && existing) {
     return {
@@ -159,14 +169,14 @@ export function bootstrapStudySession(
   const session: RespondentSession = {
     respondentId: seed.respondentId,
     studyId,
-    condition: seed.condition,
+    condition,
     startedAt: seed.startedAt ?? new Date().toISOString(),
     currentPage: seed.currentPage ?? 1,
     completedAt: undefined,
     pageDrafts: {},
   };
 
-  writeJson(sessionStorageKey(studyId), session);
+  writeJson(scopedSessionStorageKey(studyId, condition), session);
 
   return {
     session,
@@ -174,12 +184,12 @@ export function bootstrapStudySession(
   };
 }
 
-export function getStudySessionSnapshot(studyId: StudyId) {
+export function getStudySessionSnapshot(studyId: StudyId, condition: Condition) {
   if (!isBrowser()) {
     return null;
   }
 
-  const key = sessionStorageKey(studyId);
+  const key = scopedSessionStorageKey(studyId, condition);
   const raw = window.localStorage.getItem(key);
   const cached = sessionSnapshotCache.get(key);
 
@@ -187,7 +197,11 @@ export function getStudySessionSnapshot(studyId: StudyId) {
     return cached.value;
   }
 
-  const value = ensureDrafts(raw ? (JSON.parse(raw) as Partial<RespondentSession>) : null, studyId);
+  const value = ensureDrafts(
+    raw ? (JSON.parse(raw) as Partial<RespondentSession>) : null,
+    studyId,
+    condition,
+  );
   sessionSnapshotCache.set(key, {
     raw,
     value,
@@ -214,10 +228,11 @@ export function subscribeToStorage(listener: () => void) {
 
 export function saveStudyDraft(
   studyId: StudyId,
+  condition: Condition,
   pageNumber: number,
   answers: AnswerRecord,
 ) {
-  const session = readStudySession(studyId);
+  const session = readStudySession(studyId, condition);
 
   if (!session) {
     return;
@@ -231,17 +246,21 @@ export function saveStudyDraft(
     },
   };
 
-  writeJson(sessionStorageKey(studyId), nextSession);
+  writeJson(scopedSessionStorageKey(studyId, condition), nextSession);
 }
 
-export function updateStudyCurrentPage(studyId: StudyId, pageNumber: number) {
-  const session = readStudySession(studyId);
+export function updateStudyCurrentPage(
+  studyId: StudyId,
+  condition: Condition,
+  pageNumber: number,
+) {
+  const session = readStudySession(studyId, condition);
 
   if (!session) {
     return;
   }
 
-  writeJson(sessionStorageKey(studyId), {
+  writeJson(scopedSessionStorageKey(studyId, condition), {
     ...session,
     currentPage: pageNumber,
   } satisfies RespondentSession);
@@ -249,16 +268,17 @@ export function updateStudyCurrentPage(studyId: StudyId, pageNumber: number) {
 
 export function markStudyCompleted(
   studyId: StudyId,
+  condition: Condition,
   finishedAt: string,
   pageNumber: number,
 ) {
-  const session = readStudySession(studyId);
+  const session = readStudySession(studyId, condition);
 
   if (!session) {
     return;
   }
 
-  writeJson(sessionStorageKey(studyId), {
+  writeJson(scopedSessionStorageKey(studyId, condition), {
     ...session,
     currentPage: pageNumber,
     completedAt: finishedAt,
